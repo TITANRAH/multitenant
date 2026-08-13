@@ -39,3 +39,14 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/src/generated/prisma
+
+# claude code — config local de esta máquina, no del equipo
+.claude/settings.local.json
+
+# skills de agentes — sincronizados desde skills-lock.json hacia cada
+# herramienta (Claude Code, Windsurf, etc.), no se versionan
+/.agents/skills/
+/.claude/skills/
+/.windsurf/skills/

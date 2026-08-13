@@ -444,3 +444,50 @@ Desde acá, todo lo demás lo construye Claude Code siguiendo el Sprint 1.
 | Alcance creciendo sin control | El orden de sprints es la defensa; nada se adelanta |
 
 **Confirmado:** el logo del informe es el del taller emisor, junto con dirección, ciudad, teléfono, correo, Instagram y rubro. Todo eso vive en `TenantConfig` y se imprime en la cabecera del PDF.
+
+## Estado actual
+
+- Sprint en curso: 2 (por iniciar, a la espera de que se pida avanzar)
+- Completados: Sprint 1
+- Entorno: Next 16.3, Prisma 7.9.1, Node 22, Neon (production, us-east-1)
+- Primer taller: TCcars — pendiente que empiecen a capturar
+  correo y teléfono de sus clientes
+
+### Sprint 1 — avance al 2026-08-06
+
+**Hecho:**
+- `prisma/schema.prisma`: modelos `Tenant`, `TenantConfig`, `TenantFeature`, `User`
+- Migración aplicada a Neon (`prisma/migrations/20260806050148_sprint1_fundaciones`)
+- `src/lib/db/`: `client.ts` (PrismaClient + adapter Neon), `tenant.ts`
+  (`forTenant(tenantId)`), `lookup.ts` (`getTenantBySlug`), `admin.ts`
+  (`seedTenant`), `index.ts` (barrel — único punto de importación permitido)
+- `src/proxy.ts`: resuelve tenant por host y reescribe a `/[tenant]/...`
+  — **ojo**: vive en `src/proxy.ts`, NO en la raíz, porque el proyecto usa
+  carpeta `src/`. En la raíz Next lo ignora en silencio (no tira error).
+- `src/features/registry.ts` (catálogo `FEATURES`) y
+  `src/features/assertFeature.ts` (`assertFeature` para server actions,
+  `assertFeatureOrNotFound` para layout/page)
+- `src/app/[tenant]/layout.tsx` y `page.tsx`: placeholder mínimo, resuelven
+  tenant y devuelven 404 si no existe
+- Regla de ESLint (`eslint.config.mjs`) que prohíbe importar
+  `@prisma/client` / `@prisma/adapter-neon` / `@/generated/prisma/*` fuera
+  de `src/lib/db`
+- `prisma/seed.ts`: talleres semilla `tccars` (ordenes, agenda,
+  recordatorios, portal, contabilidad) y `demo` (ordenes, mostrario) —
+  ya corrido contra Neon
+- `Dockerfile` multi-stage + `output: "standalone"` en `next.config.ts`
+- Verificado: `npx eslint .` limpio, `npm run build` sin errores (aparece
+  `ƒ Proxy (Middleware)` en el resumen de rutas)
+
+**Verificación en navegador — 2026-08-12:**
+- `tccars.localhost:3000` y `demo.localhost:3000` muestran cada uno su
+  propio taller
+- Host desconocido (`noexiste.localhost:3000`) → "taller no encontrado"
+- Ruta inexistente dentro de un tenant válido (`tccars.localhost:3000/algo-inventado`) → 404
+- **No hizo falta tocar `/etc/hosts`**: macOS y los navegadores modernos
+  resuelven `*.localhost` a `127.0.0.1` automáticamente (RFC 6761).
+  Verificado con `ping tccars.localhost`. Ojo con esto en el futuro:
+  no asumir que hace falta editar hosts sin comprobarlo primero.
+
+**Sprint 1 cerrado.** Siguiente: Sprint 2, a la espera de que se pida
+avanzar explícitamente.

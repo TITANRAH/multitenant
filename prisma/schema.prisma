@@ -1,0 +1,88 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// --- Fundaciones multi-tenant (Sprint 1) ---
+// Ver docs/plan.md secciones 1, 2 y 7.
+
+model Tenant {
+  id     String @id @default(cuid())
+  slug   String @unique
+  host   String @unique
+
+  nombre String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  config   TenantConfig?
+  features TenantFeature[]
+  users    User[]
+
+  @@map("tenants")
+}
+
+// Identidad visual y datos de contacto del taller (Sprint 10 los edita,
+// pero el modelo vive desde el Sprint 1 porque el PDF del Sprint 4 ya los usa).
+model TenantConfig {
+  tenantId String @id
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  logoUrl         String?
+  colorPrimario   String?
+  colorSecundario String?
+  tipografia      String?
+
+  direccion String?
+  ciudad    String?
+  telefono  String?
+  correo    String?
+  instagram String?
+  rubro     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("tenant_configs")
+}
+
+// Activación de features por taller. El catálogo vive en código
+// (src/features/registry.ts), esta tabla solo enciende/apaga y parametriza.
+model TenantFeature {
+  tenantId   String
+  featureKey String
+
+  enabled   Boolean   @default(true)
+  config    Json?
+  expiresAt DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, featureKey])
+  @@map("tenant_features")
+}
+
+model User {
+  id       String @id @default(cuid())
+  tenantId String
+
+  email String
+  name  String
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@map("users")
+}
