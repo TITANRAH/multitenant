@@ -1,15 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const findUnique = vi.fn();
+const findMany = vi.fn();
 
 vi.mock("@/lib/db/client", () => ({
-  prisma: { tenant: { findUnique } },
+  prisma: { tenant: { findUnique, findMany } },
 }));
 
-const { getTenantBySlug } = await import("@/lib/db/lookup");
+const { getTenantBySlug, listTenants } = await import("@/lib/db/lookup");
 
 beforeEach(() => {
   findUnique.mockReset();
+  findMany.mockReset();
 });
 
 describe("getTenantBySlug", () => {
@@ -42,5 +44,28 @@ describe("getTenantBySlug", () => {
 
     const callArgs = findUnique.mock.calls[0][0];
     expect(callArgs.where).toEqual({ slug: "tccars" });
+  });
+});
+
+describe("listTenants", () => {
+  it("excluye el tenant especial 'plataforma'", async () => {
+    findMany.mockResolvedValue([]);
+
+    await listTenants();
+
+    expect(findMany).toHaveBeenCalledWith({
+      where: { slug: { not: "plataforma" } },
+      select: { id: true, slug: true, host: true, nombre: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+    });
+  });
+
+  it("devuelve los talleres encontrados", async () => {
+    const tenants = [
+      { id: "t1", slug: "tccars", host: "tccars.localhost:3000", nombre: "TCcars", createdAt: new Date() },
+    ];
+    findMany.mockResolvedValue(tenants);
+
+    await expect(listTenants()).resolves.toEqual(tenants);
   });
 });

@@ -14,18 +14,19 @@ datasource db {
 // Ver docs/plan.md secciones 1, 2 y 7.
 
 model Tenant {
-  id     String @id @default(cuid())
-  slug   String @unique
-  host   String @unique
+  id   String @id @default(cuid())
+  slug String @unique
+  host String @unique
 
   nombre String
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  config   TenantConfig?
-  features TenantFeature[]
-  users    User[]
+  config      TenantConfig?
+  features    TenantFeature[]
+  users       User[]
+  invitations Invitation[]
 
   @@map("tenants")
 }
@@ -47,6 +48,12 @@ model TenantConfig {
   correo    String?
   instagram String?
   rubro     String?
+
+  // Contador vivo de OT/mantenciones (Sprint 3 lo lee e incrementa en cada
+  // OT nueva). Se siembra en el alta con el número donde el taller se
+  // quedó en su sistema anterior — nunca reinicia en 1 un taller con
+  // historial previo.
+  correlativoActual Int @default(1)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -70,14 +77,39 @@ model TenantFeature {
   @@map("tenant_features")
 }
 
+// Rol operativo dentro de un taller. Ver assertRole (Sprint 2).
+enum StaffRole {
+  OWNER
+  ADMIN
+  RECEPCION
+  MECANICO
+}
+
+// Rol de plataforma (tu cuenta), independiente del rol dentro del taller.
+// Nulo para el staff normal de un taller; solo se usa para el panel de
+// plataforma, servido por el tenant especial de slug "plataforma".
+enum PlatformRole {
+  SUPERADMIN
+}
+
 model User {
   id       String @id @default(cuid())
   tenantId String
 
-  email String
-  name  String
+  email        String
+  name         String
+  passwordHash String? // null hasta que la invitación se acepta y define contraseña
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role         StaffRole
+  platformRole PlatformRole?
+
+  // Bloqueo optimista genérico (regla Sprint 2): se incrementa en cada
+  // update; un update con version desactualizada falla en vez de pisar
+  // el cambio de otro usuario. Ver src/lib/db/optimistic.ts.
+  version Int @default(1)
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invitations Invitation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -85,4 +117,28 @@ model User {
   @@unique([tenantId, email])
   @@index([tenantId])
   @@map("users")
+}
+
+// Invitación pendiente: el OWNER/ADMIN la crea, se manda por email (Resend),
+// la persona la acepta y ahí recién se crea/activa su User con passwordHash.
+model Invitation {
+  id       String @id @default(cuid())
+  tenantId String
+
+  email String
+  role  StaffRole
+  token String    @unique
+
+  invitedById String
+  invitedBy   User   @relation(fields: [invitedById], references: [id])
+
+  expiresAt  DateTime
+  acceptedAt DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@map("invitations")
 }

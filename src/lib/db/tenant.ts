@@ -6,6 +6,7 @@ const TENANT_SCOPED_MODELS = new Set([
   "TenantConfig",
   "TenantFeature",
   "User",
+  "Invitation",
 ]);
 
 /**

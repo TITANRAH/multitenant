@@ -6,8 +6,8 @@ Plan completo, arquitectura y los 15 sprints: `docs/plan.md`.
 Léelo antes de cualquier decisión de arquitectura, modelado o alcance.
 
 ## Stack
-Next.js 16 (App Router) · TypeScript · Tailwind · Prisma · PostgreSQL (Neon)
-Cloudflare R2 (imágenes) · Resend (email) · Claude API (chatbox)
+Next.js 16 (App Router) · TypeScript · Tailwind · shadcn/ui · Prisma ·
+PostgreSQL (Neon) · Cloudflare R2 (imágenes) · Resend (email) · Claude API (chatbox)
 
 ## Comandos
 npm run dev
@@ -40,6 +40,10 @@ src/features/       registro de módulos y de features activables por taller
 10. La orden de trabajo guarda `clienteId` explícito, no lo deduce del vehículo
 11. Todo desarrollo trae sus tests. Ningún módulo, feature o función de
     `src/lib/db` se da por terminado sin su test co-ubicado (ver sección Testing)
+12. Toda UI se construye con componentes de shadcn/ui (`src/components/ui/`,
+    instalados con `npx shadcn@latest add <componente>`), nunca HTML a mano
+    con clases Tailwind sueltas. Si falta el componente, se agrega con el CLI
+    antes de escribir el formulario/vista
 
 ## Testing
 - Framework: Vitest (`npm test` corre toda la suite una vez, `npm run test:watch`
@@ -58,6 +62,11 @@ src/features/       registro de módulos y de features activables por taller
 - Si un requerimiento no encaja en ningún módulo existente, propón el módulo
   antes de programar
 - No avances al siguiente sprint sin que te lo pida
+- **Al cerrar cada sprint**, generar un diagrama de secuencia explicativo de
+  todo lo construido en ese sprint: con nombre de archivo en cada
+  participante/paso, y el propósito de por qué existe cada pieza de código
+  (no solo qué hace). Guardarlo en `docs/aprendizaje/NN-nombre.md` siguiendo
+  el mismo formato que `03-flujo-resolucion-tenant.md`
 EOF
 
 <!-- BEGIN:nextjs-agent-rules -->

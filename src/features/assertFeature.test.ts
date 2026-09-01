@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const findFirst = vi.fn();
-const forTenant = vi.fn(() => ({
+const forTenant = vi.fn((_tenantId: string) => ({
   tenantFeature: { findFirst },
 }));
 const notFound = vi.fn(() => {

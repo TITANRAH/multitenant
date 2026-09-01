@@ -447,11 +447,18 @@ Desde acá, todo lo demás lo construye Claude Code siguiendo el Sprint 1.
 
 ## Estado actual
 
-- Sprint en curso: 2 (por iniciar, a la espera de que se pida avanzar)
-- Completados: Sprint 1
+- Sprint en curso: 3 (sin empezar, a la espera de que se pida avanzar)
+- Completados: Sprint 1, Sprint 2
 - Entorno: Next 16.3, Prisma 7.9.1, Node 22, Neon (production, us-east-1)
 - Primer taller: TCcars — pendiente que empiecen a capturar
   correo y teléfono de sus clientes
+- **Pendiente, sin bloquear nada por ahora:** falta comprar el dominio
+  propio de la plataforma (no de un taller — TCcars es cliente, no la
+  plataforma). Resend exige dominio verificado para poder enviar cualquier
+  correo; mientras tanto `sendInvitationEmail` queda mockeado (loguea el
+  link en consola), que alcanza para desarrollar y probar el flujo
+  completo de invitación. Nombre todavía sin decidir (se barajó
+  "Taller360", ocupado)
 
 ### Sprint 1 — avance al 2026-08-06
 
@@ -491,3 +498,132 @@ Desde acá, todo lo demás lo construye Claude Code siguiendo el Sprint 1.
 
 **Sprint 1 cerrado.** Siguiente: Sprint 2, a la espera de que se pida
 avanzar explícitamente.
+
+---
+
+### Sprint 2 — avance al 2026-08-13
+
+**Decisiones tomadas (confirmadas con el usuario):**
+- Auth: Auth.js (NextAuth v5), sesión JWT (sin adapter de Prisma — no hace
+  falta, no hay OAuth, solo Credentials)
+- Login del staff: email + contraseña (no magic link — eso queda para el
+  portal del cliente en Sprint 9)
+- Jerarquía de roles: `MECANICO < RECEPCION < ADMIN < OWNER` (pedir un
+  mínimo también deja pasar a los de arriba)
+- Panel de plataforma: vive en un tenant especial reservado
+  (`slug: "plataforma"`), reutiliza `proxy.ts` tal cual, sin tocarlo
+
+**Hecho:**
+- `prisma/schema.prisma`: enums `StaffRole` y `PlatformRole`; `User` suma
+  `passwordHash` (null = invitación sin aceptar), `role`, `platformRole`,
+  `version` (bloqueo optimista); modelo nuevo `Invitation`. Migración
+  aplicada a Neon (`20260813023936_sprint2_roles_e_invitaciones`)
+- `src/lib/auth/assertRole.ts` — gate por rol (`assertRole` para server
+  actions, `assertRoleOrNotFound` para páginas), con su test
+- `src/lib/auth/password.ts` — hash/verificación con `scrypt` nativo de
+  Node (sin dependencia nueva), con su test
+- `src/lib/auth/authorizeCredentials.ts` — lógica del login separada de
+  next-auth para que sea testeable sin arrastrar todo el framework, con
+  su test
+- `src/lib/auth/auth.ts` + `src/app/api/auth/[...nextauth]/route.ts` —
+  Auth.js configurado: provider Credentials, sesión JWT con `tenantId` /
+  `role` / `platformRole` embebidos
+- Diagrama de secuencia del login completo:
+  `docs/aprendizaje/04-login-y-roles.md`
+- Regla nueva en `CLAUDE.md`: al cerrar cada sprint, diagrama de secuencia
+  explicativo en `docs/aprendizaje/` (con archivos y el porqué de cada
+  pieza, no solo el qué)
+- `.gitignore`: fuera `.claude/settings.local.json` (config local) y las
+  carpetas `skills/` sincronizadas de `.agents/`, `.claude/`, `.windsurf/`
+  (regenerables desde `skills-lock.json`, no se versionan)
+- Suite de tests: 45 tests, todos en verde (`npm test`)
+
+**Hecho, continuación — mismo día (2026-08-13):**
+- `src/lib/auth/invitations.ts` — `createInvitation` / `acceptInvitation`,
+  sin gate de rol adentro (lo pone quien llama — necesario porque el
+  panel de plataforma crea el primer OWNER de un taller sin que exista
+  todavía ningún ADMIN que lo autorice), con su test
+- `src/lib/email/sendInvitationEmail.ts` — envío **mockeado**: loguea el
+  link en consola en vez de mandar el correo real (bloqueado por falta
+  de dominio, ver más abajo). Un solo archivo para reemplazar cuando haya
+  dominio, con su test
+- `src/lib/db/tenant.ts` — `Invitation` sumado a `TENANT_SCOPED_MODELS`
+  (se había quedado afuera al escribir el schema)
+- `src/proxy.ts` ya NO usa el mapa fijo `HOST_TO_SLUG`: consulta
+  `getTenantSlugByHost` (nuevo, en `src/lib/db/lookup.ts`) contra la
+  tabla `Tenant`. Agregar un taller (o el tenant `plataforma`) ya no
+  requiere tocar código ni desplegar. Costo: cada request ahora le pega
+  a Neon (~200ms medido en dev); no se cacheó todavía a propósito — medir
+  antes de optimizar
+- `src/lib/db/client.ts` — suma `ws` como implementación de `WebSocket`
+  cuando falta (Node.js plano, ej. scripts con `tsx`): las transacciones
+  de Prisma (`$transaction`) lo necesitan y Node 20 no lo trae. El
+  runtime edge del proxy y el navegador ya lo tienen, así que esto no les
+  afecta — verificado con `npm run build` (bundle edge intacto)
+- `prisma/seedPlatform.ts` (`npm run db:seed-platform`) — siembra el
+  tenant especial `slug: "plataforma"` y la cuenta `SUPERADMIN`,
+  leyendo `PLATFORM_ADMIN_EMAIL` / `_NAME` / `_PASSWORD` de `.env`
+  (nunca hardcodeadas). **Ya corrido contra Neon** — la cuenta existe
+- `src/lib/auth/assertPlatformRole.ts` — gate del otro eje
+  (`assertPlatformRole` / `assertPlatformRoleOrNotFound`), hermano de
+  `assertRole` pero para `platformRole`, con su test
+- `npm audit fix` corrido (vulnerabilidad de `nanoid`, resuelta)
+- Diagrama de secuencia de todo lo anterior:
+  `docs/aprendizaje/05-invitaciones-y-plataforma.md`
+- Suite de tests: **60 tests, todos en verde**
+
+**Hecho, continuación — 2026-08-31 (cierre del sprint):**
+- **shadcn/ui sumado al stack** (`components.json`, `src/components/ui/`,
+  regla nueva #12 en `CLAUDE.md`: toda UI se construye con sus componentes,
+  nunca HTML a mano con clases Tailwind sueltas)
+- `src/app/[tenant]/talleres/page.tsx` — panel de plataforma: lista los
+  talleres (`listTenants`, que excluye el propio tenant `"plataforma"`
+  filtrando por slug — sigue siendo la única excepción a la regla #1 del
+  CLAUDE.md, revisada y aceptada tal cual por ahora) y el botón "Nuevo
+  taller". Gate: `assertPlatformRoleOrNotFound`
+- `src/app/[tenant]/talleres/nuevo/` — formulario de alta
+  (`NuevoTallerForm.tsx`), con `schema.ts` (zod) como única fuente de
+  validación entre cliente (react-hook-form + `zodResolver`) y servidor
+  (`actions.ts` vuelve a validar con `safeParse`, nunca confía en el
+  cliente), y `src/features/packages.ts` (paquetes comerciales → features)
+- `src/app/[tenant]/login/` — página de login genérica por tenant
+  (`getTenantBySlug` resuelve el `tenantId` del slug de la URL), mismo
+  patrón de formulario, llama a `signIn("credentials", ...)` de
+  `next-auth/react`
+- `src/app/[tenant]/invitacion/[token]/` — página de aceptar invitación:
+  `getInvitationByToken` (nuevo en `invitations.ts`) resuelve el estado
+  del link (inválido / ya usado / vencido / listo) **antes** de mostrar el
+  formulario; `acceptInvitationAction` traduce los errores tipados
+  (`InvitationNotFoundError` y hermanos) a mensaje. Cierra el ciclo:
+  crear taller → link de invitación (en consola, mockeado) → fijar
+  contraseña → loguearse como su OWNER
+- `src/lib/auth/actions.ts` (`logoutAction`) + `src/components/LogoutButton.tsx`
+  — sin `assertRole`/`assertFeature` a propósito: cerrar tu propia sesión
+  no lee ni escribe nada del tenant
+- **Bug encontrado y corregido:** `src/proxy.ts` reescribía *todo*,
+  incluido `/api/auth/*` (NextAuth vive en la raíz, fuera de `[tenant]`),
+  a `/<slug>/api/auth/*` — inexistente. `signIn()` recibía un 404 en HTML
+  en vez de la respuesta JSON esperada. Fix: `config.matcher` ahora excluye
+  `/api`
+- **Correlativo de mantenciones inicializable en el alta** (`docs/plan.md`
+  línea 179, lo único que faltaba para cerrar el sprint):
+  `TenantConfig.correlativoActual Int @default(1)` (migración
+  `20260901022759_sprint2_correlativo_mantenciones`), sembrado por
+  `seedTenant`/`provisionTenant` con el parámetro opcional
+  `correlativoInicial` — **solo al crear**, un re-seed nunca lo pisa, para
+  no resetear un contador que ya avanzó. Campo nuevo en el form de alta.
+  El Sprint 3 es quien lo consume e incrementa en cada OT nueva
+- `zod` deprecó el encadenado `.email()` → se corrigió a `z.email()` en
+  ambos schemas (`talleres` y `login`)
+- Diagrama de secuencia de todo el sprint:
+  `docs/aprendizaje/06-panel-de-plataforma.md`
+- Suite de tests: **91 tests, todos en verde**
+
+**Sprint 2 cerrado.** Sigue bloqueado, sin cambios: el envío real de
+invitaciones por Resend (falta dominio propio verificado; nombre todavía
+sin decidir). Mientras tanto, el link de invitación se ve en la consola
+del servidor — suficiente para desarrollar y probar el flujo completo.
+
+**Para retomar:** Sprint 3 — clientes, vehículos y órdenes de trabajo
+(`docs/plan.md` línea 186), a la espera de que se pida avanzar
+explícitamente.

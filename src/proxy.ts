@@ -1,18 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { getTenantSlugByHost } from "@/lib/db";
 
-// Talleres semilla del Sprint 1. En el Sprint 2 esto se reemplaza por una
-// consulta a la tabla Tenant (o una caché de esa consulta); por ahora el
-// proxy no toca la base de datos.
-const HOST_TO_SLUG: Record<string, string> = {
-  "tccars.localhost:3000": "tccars",
-  "tccars.localhost": "tccars",
-  "demo.localhost:3000": "demo",
-  "demo.localhost": "demo",
-};
-
-export default function proxy(request: NextRequest) {
+// Sprint 2: el host ahora se resuelve consultando la tabla Tenant (antes
+// era un mapa fijo). Esto es lo que permite agregar talleres (o el tenant
+// especial "plataforma") sin tocar este archivo ni desplegar.
+export default async function proxy(request: NextRequest) {
   const host = request.headers.get("host") ?? "";
-  const slug = HOST_TO_SLUG[host];
+  const slug = await getTenantSlugByHost(host);
 
   if (!slug) {
     return new NextResponse("Taller no encontrado", { status: 404 });
@@ -26,7 +20,10 @@ export default function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Todo excepto assets estáticos, imágenes de Next y el favicon.
-    "/((?!_next/static|_next/image|favicon.ico).*)",
+    // Todo excepto assets estáticos, imágenes de Next, el favicon y /api.
+    // /api/auth/* (NextAuth) vive en la raíz, fuera de [tenant] — si se
+    // reescribe queda buscando /<slug>/api/auth/*, que no existe, y
+    // signIn() recibe un 404 en HTML en vez de la respuesta JSON esperada.
+    "/((?!_next/static|_next/image|favicon.ico|api).*)",
   ],
 };

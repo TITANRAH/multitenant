@@ -42,6 +42,21 @@ describe("forTenant — inyección de tenantId", () => {
     });
   });
 
+  it("agrega tenantId al where de findUnique en un modelo scoped (Invitation, buscada por token)", async () => {
+    const query = vi.fn().mockResolvedValue(null);
+
+    await $allOperations({
+      model: "Invitation",
+      operation: "findUnique",
+      args: { where: { token: "abc123" } },
+      query,
+    });
+
+    expect(query).toHaveBeenCalledWith({
+      where: { token: "abc123", tenantId: "tccars-id" },
+    });
+  });
+
   it("agrega tenantId al data de create en un modelo scoped (User)", async () => {
     const query = vi.fn().mockResolvedValue({});
 

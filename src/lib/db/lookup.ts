@@ -23,3 +23,40 @@ export const getTenantBySlug = cache(
     });
   },
 );
+
+/**
+ * Resuelve el slug a partir del host (header Host de la petición). La usa
+ * `proxy.ts` para decidir a qué carpeta /[tenant]/... reescribir.
+ *
+ * Sin cache() a propósito: proxy.ts corre por fuera del árbol de React
+ * (es lo primero que toca cada request), así que el cache de React no
+ * aplica ahí. Cachear esto de otra forma es optimización prematura hasta
+ * que se mida que hace falta.
+ */
+export async function getTenantSlugByHost(host: string): Promise<string | null> {
+  const tenant = await prisma.tenant.findUnique({
+    where: { host },
+    select: { slug: true },
+  });
+  return tenant?.slug ?? null;
+}
+
+export type TenantListItem = {
+  id: string;
+  slug: string;
+  host: string;
+  nombre: string;
+  createdAt: Date;
+};
+
+/**
+ * Lista los talleres para el panel de plataforma. Excluye el tenant
+ * especial "plataforma": es la plataforma misma, no un cliente.
+ */
+export async function listTenants(): Promise<TenantListItem[]> {
+  return prisma.tenant.findMany({
+    where: { slug: { not: "plataforma" } },
+    select: { id: true, slug: true, host: true, nombre: true, createdAt: true },
+    orderBy: { createdAt: "desc" },
+  });
+}
